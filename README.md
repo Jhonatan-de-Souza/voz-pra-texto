@@ -1,41 +1,103 @@
-PoC: Dictation tray app (press-and-hold) using OpenAI Whisper
+PoC: aplicativo de ditado (pressione-e-segure) com OpenAI Whisper
 
-Overview
+Resumo rápido
 
-This project is a minimal proof-of-concept for a Windows tray app that records while a global hotkey is pressed and, on release, transcribes the recording and pastes the text to the active input.
+Este projeto é um protótipo mínimo para Windows. Ele fica na barra de sistema (tray); enquanto você mantiver um atalho global pressionado (ex.: Ctrl+Shift) ele grava áudio. Ao soltar o atalho, o áudio é transcrito e o texto é colado no campo ativo.
 
-Stack
+Principais componentes
 
 - Python
-- sounddevice (audio capture)
-- whisper (OpenAI PyTorch implementation)
-- keyboard (global hotkeys and typing)
-- pystray (tray icon)
-- pyperclip (clipboard handling)
+- Captura de áudio: `sounddevice`
+- Transcrição: `openai-whisper` (PyTorch)
+- Hotkey / digitação: `keyboard`
+- Ícone na tray: `pystray`
+- Área de transferência: `pyperclip`
 
-Quick start (PowerShell)
+Passos rápidos (PowerShell)
 
-1. Create a virtual environment and activate it (PowerShell):
+1) Criar e ativar o ambiente virtual:
 
 ```powershell
-# from project root
-python -m venv .venv; .\.venv\Scripts\Activate.ps1
+# na raiz do projeto
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 ```
 
-2. Install dependencies:
+# VozPraTexto 
+
+Protótipo mínimo para Windows: grava áudio enquanto um atalho global é mantido pressionado e, ao soltar, transcreve e cola o texto no campo ativo.
+
+## Principais componentes
+
+- Python
+- Captura de áudio: `sounddevice`
+- Transcrição: `openai-whisper` (PyTorch)
+- Hotkey / digitação: `keyboard`
+- Ícone na tray: `pystray`
+- Área de transferência: `pyperclip`
+
+## Requisitos
+
+- Python 3.10+ (recomendado)
+- Espaço suficiente para instalar PyTorch e modelos do Whisper
+
+## Instalação (rápido)
+
+1. Criar e ativar o ambiente virtual (PowerShell):
+
+```powershell
+# na raiz do projeto
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+2. Instalar dependências:
 
 ```powershell
 python -m pip install -U pip
 python -m pip install -r requirements.txt
 ```
 
-3. Run the app:
+3. Rodar o protótipo:
 
 ```powershell
 python -m src.app
 ```
 
-Notes
+## Uso básico
 
-- `whisper` requires PyTorch. Installing CPU-only PyTorch via `pip` can be slow; consider following official PyTorch instructions for your platform if you want GPU support.
-- This is a minimal POC, not production-ready. Hotkeys, permissions, error handling, and packaging will need improvements.
+- Segure `Ctrl+Shift` para começar a gravar.
+- Solte `Ctrl+Shift` para parar e transcrever.
+- O texto é copiado para a área de transferência e colado com `Ctrl+V` no aplicativo com foco.
+
+## Configuração rápida
+
+- Para escolher outro modelo do Whisper, edite a variável `MODEL_NAME` em `src/app.py` ou exporte a variável de ambiente `WHISPER_MODEL` antes de rodar:
+
+```powershell
+setx WHISPER_MODEL "small"
+```
+
+## Observações e dicas
+
+- `openai-whisper` usa PyTorch; em CPUs fracas escolha modelos menores (ex.: `tiny`, `base`, `small`) para melhor desempenho.
+- Em alguns sistemas, `keyboard` pode exigir privilégios de administrador para hooks globais.
+- O app usa o clipboard para colar o texto e tenta restaurar o conteúdo anterior.
+- Este repositório contém um POC — é recomendável melhorar tratamento de erros e oferecer uma UI de configuração antes de distribuir.
+
+## Arquivos úteis
+
+- `src/app.py` — código principal do protótipo
+- `requirements.txt` — dependências
+- `scripts/create_venv.ps1` — script para criar venv e instalar dependências
+
+## Próximos passos (opcionais)
+
+- Adicionar tela de configuração (atalho, microfone, modelo)
+- Trocar para engine offline/quantizada (ex.: `whisper.cpp` / `faster-whisper` / `VOSK`)
+- Empacotar com `pyinstaller` para gerar executável Windows
+
+---
+
+Se quiser, eu edito o `README` para incluir exemplos mais detalhados ou crio `INSTRUCOES_PT.md` separado com passos passo-a-passo.
+
