@@ -1,28 +1,3 @@
-PoC: aplicativo de ditado (pressione-e-segure) com OpenAI Whisper
-
-Resumo rápido
-
-Este projeto é um protótipo mínimo para Windows. Ele fica na barra de sistema (tray); enquanto você mantiver um atalho global pressionado (ex.: Ctrl+Shift) ele grava áudio. Ao soltar o atalho, o áudio é transcrito e o texto é colado no campo ativo.
-
-Principais componentes
-
-- Python
-- Captura de áudio: `sounddevice`
-- Transcrição: `openai-whisper` (PyTorch)
-- Hotkey / digitação: `keyboard`
-- Ícone na tray: `pystray`
-- Área de transferência: `pyperclip`
-
-Passos rápidos (PowerShell)
-
-1) Criar e ativar o ambiente virtual:
-
-```powershell
-# na raiz do projeto
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
-
 # VozPraTexto 
 
 Protótipo mínimo para Windows: grava áudio enquanto um atalho global é mantido pressionado e, ao soltar, transcreve e cola o texto no campo ativo.
