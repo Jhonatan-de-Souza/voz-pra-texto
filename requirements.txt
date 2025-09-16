@@ -1,0 +1,14 @@
+sounddevice>=0.4.7
+numpy>=1.23.0
+keyboard>=0.13.5
+pystray==0.19.5
+Pillow>=9.0.0
+pyperclip>=1.8.2
+# soundfile
+soundfile>=0.12.1
+# Use openai-whisper to avoid a name collision with Graphite's 'whisper' package
+openai-whisper>=1.1.10
+# Note: torch installation on Windows may require following PyTorch's official instructions
+# If pip cannot find a compatible wheel for your Python version, install torch manually
+# per https://pytorch.org/get-started/locally/
+torch
