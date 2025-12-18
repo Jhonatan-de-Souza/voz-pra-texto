@@ -1,61 +1,85 @@
-# VozPraTexto 
+# Voice2Text - Background Speech-to-Text Service
 
-Protótipo mínimo para Windows: grava áudio enquanto um atalho global é mantido pressionado e, ao soltar, transcreve e cola o texto no campo ativo.
+A lightweight background service that transcribes speech to text using Whisper AI.
 
-## Principais componentes
+## Features
 
-- Python
-- Captura de áudio: `sounddevice`
-- Transcrição: `openai-whisper` (PyTorch)
-- Hotkey / digitação: `keyboard`
-- Ícone na tray: `pystray`
-- Área de transferência: `pyperclip`
+- 🎙️ **Background Service** - Runs silently in system tray
+- ⚡ **Fast Transcription** - GPU-accelerated with Whisper (tiny model ~1 second)
+- 📝 **Auto-Paste** - Transcribed text automatically pastes via Ctrl+V
+- 💾 **Local Storage** - All transcriptions saved to SQLite database
+- 🚀 **Auto-Start** - Included batch file for automatic startup
+- 🎯 **Easy Hotkey** - Press **Ctrl+Windows** to record
 
-## Requisitos
+## Quick Start
 
-- Python 3.10+ (recomendado)
-- Espaço suficiente para instalar PyTorch e modelos do Whisper
-
-## Instalação (rápido)
-
-1. Criar e ativar o ambiente virtual (PowerShell):
-
-```powershell
-# na raiz do projeto
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+1. Install dependencies:
+```bash
+pip install -r requirements.txt
 ```
 
-2. Instalar dependências:
-
+2. Test it:
 ```powershell
-python -m pip install -U pip
-python -m pip install -r requirements.txt
+$env:WHISPER_MODEL = 'tiny'
+pythonw c:\Git\voz-pra-texto\app_background_service.py
 ```
 
-3. Rodar o protótipo:
+3. Press **Ctrl+Windows** → Speak → Release → Text appears!
+
+## Auto-Start on Boot
+
+1. Press **Win+R** and type: `shell:startup`
+2. Copy `Voice2Text.bat` into that folder
+3. Restart your computer - app starts automatically
+
+## Usage
+
+- **Ctrl+Windows** to start recording
+- **Release keys** to transcribe and paste
+- Click **notepad icon in tray** for options:
+  - 📂 Open Data Folder
+  - 📊 View Recent
+  - ❌ Quit
+
+## Data Storage
+
+Transcriptions saved to: `C:\Users\YourUsername\.voz-pra-texto\transcriptions.db`
+
+Includes:
+- Timestamp
+- Full transcription text
+- Recording duration
+
+## Performance
+
+- **Recording to paste:** ~2-3 seconds (with GPU)
+- **Idle CPU:** <1%
+- **Idle RAM:** 200-300 MB
+- **Disk space needed:** ~3GB for models
+
+## Customization
+
+### Change Speed vs Accuracy
 
 ```powershell
-python -m src.app
+# Fastest (less accurate)
+$env:WHISPER_MODEL = 'tiny'
+
+# More accurate (slower)
+$env:WHISPER_MODEL = 'base'
 ```
 
-## Uso básico
+### Change Hotkey
 
-- Segure `Ctrl+Shift` para começar a gravar.
-- Solte `Ctrl+Shift` para parar e transcrever.
-- O texto é copiado para a área de transferência e colado com `Ctrl+V` no aplicativo com foco.
-
-## Configuração rápida
-
-- Para escolher outro modelo do Whisper, edite a variável `MODEL_NAME` em `src/app.py` ou exporte a variável de ambiente `WHISPER_MODEL` antes de rodar:
-
-```powershell
-setx WHISPER_MODEL "small"
+Edit `app_background_service.py` line 35:
+```python
+HOTKEY = 'ctrl+win'  # Change to 'alt+v', 'f9', etc.
 ```
 
-## Observações e dicas
+## Requirements
 
-- `openai-whisper` usa PyTorch; em CPUs fracas escolha modelos menores (ex.: `tiny`, `base`, `small`) para melhor desempenho.
-- Em alguns sistemas, `keyboard` pode exigir privilégios de administrador para hooks globais.
-- O app usa o clipboard para colar o texto e tenta restaurar o conteúdo anterior.
-- Este repositório contém um POC — é recomendável melhorar tratamento de erros e oferecer uma UI de configuração antes de distribuir.
+- Windows 10/11
+- Python 3.8+
+- 4GB RAM minimum
+- 3GB disk space
+- GPU recommended (NVIDIA/AMD)

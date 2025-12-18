@@ -9,6 +9,8 @@ import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
+import tkinter as tk
+from tkinter import font
 
 import numpy as np
 import pyperclip
@@ -50,6 +52,8 @@ audio_queue = queue.Queue()
 frames = []
 stream = None
 record_thread = None
+popup_window = None
+popup_label = None
 
 # Load whisper model
 MODEL_NAME = os.environ.get('WHISPER_MODEL', 'small')
@@ -83,6 +87,65 @@ def setup_database():
     
     conn.commit()
     conn.close()
+
+
+def show_popup(message: str):
+    """Show popup window with message"""
+    global popup_window, popup_label
+    
+    try:
+        if popup_window is not None:
+            popup_window.destroy()
+    except:
+        pass
+    
+    popup_window = tk.Tk()
+    popup_window.geometry("250x120+100+100")
+    popup_window.config(bg="#2b2b2b")
+    popup_window.attributes('-topmost', True)
+    popup_window.resizable(False, False)
+    popup_window.overrideredirect(True)
+    
+    # Center on screen
+    popup_window.update_idletasks()
+    x = (popup_window.winfo_screenwidth() // 2) - (250 // 2)
+    y = (popup_window.winfo_screenheight() // 2) - (120 // 2)
+    popup_window.geometry(f"250x120+{x}+{y}")
+    
+    # Add label
+    font_style = font.Font(family="Arial", size=16, weight="bold")
+    popup_label = tk.Label(popup_window, text=message, fg="#4da6ff", bg="#2b2b2b", font=font_style)
+    popup_label.pack(expand=True)
+    
+    popup_window.update()
+
+
+def hide_popup():
+    """Hide popup window"""
+    global popup_window
+    try:
+        if popup_window is not None:
+            popup_window.destroy()
+            popup_window = None
+    except:
+        pass
+
+
+def animate_popup():
+    """Animate popup with dots"""
+    global popup_label, popup_window
+    if popup_label is None:
+        return
+    
+    dots = ["●", "●●", "●●●"]
+    for dot in dots * 3:
+        try:
+            if popup_label is not None:
+                popup_label.config(text=f"Transcribing...\n{dot}")
+                popup_window.update()
+                time.sleep(0.3)
+        except:
+            break
 
 
 def make_icon() -> Image.Image:
@@ -123,6 +186,7 @@ def start_recording():
     if recording:
         return
     recording = True
+    show_popup("🎙️ Listening...")
     print("🎙️ Starting recording...")
     stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=CHANNELS, callback=audio_callback)
     stream.start()
@@ -167,8 +231,8 @@ def stop_recording_and_transcribe():
 
     print(f"Saved recording to {path}, launching transcription...")
 
-    # Transcribe and summarize (blocking) - run in a new thread to avoid blocking main
-    t = threading.Thread(target=transcribe_summarize_and_paste, args=(path, duration), daemon=True)
+    # Transcribe and paste - run in a new thread to avoid blocking main
+    t = threading.Thread(target=transcribe_and_paste, args=(path, duration), daemon=True)
     t.start()
 
 
@@ -267,27 +331,45 @@ def save_to_database(transcription: str, duration: float, audio_file: str = None
 
 def transcribe_and_paste(wav_path: str, duration: float):
     try:
+        show_popup("Transcribing...\n●")
         print("🔄 Transcribing...")
-        result = model.transcribe(wav_path)
-        text = result.get('text', '').strip()
         
-        print(f"✅ Transcription: {text[:100]}...")
-        
-        if text:
-            # Save to database
-            save_to_database(text, duration)
-            
-            # Copy transcription to clipboard
-            pyperclip.copy(text)
-            # Small delay to ensure clipboard is set
-            time.sleep(0.05)
-            # Send Ctrl+V to paste the transcription
-            keyboard.send('ctrl+v')
-            time.sleep(0.05)
+        # Run transcription in a thread so popup can animate
+        def transcribe_thread():
+            try:
+                result = model.transcribe(wav_path)
+                text = result.get('text', '').strip()
                 
-            print("✨ Transcription pasted!")
+                print(f"✅ Transcription: {text[:100]}...")
+                
+                if text:
+                    # Save to database
+                    save_to_database(text, duration)
+                    
+                    # Copy transcription to clipboard
+                    pyperclip.copy(text)
+                    # Small delay to ensure clipboard is set
+                    time.sleep(0.05)
+                    # Send Ctrl+V to paste the transcription
+                    keyboard.send('ctrl+v')
+                    time.sleep(0.05)
+                    
+                    hide_popup()
+                    print("✨ Transcription pasted!")
+                else:
+                    hide_popup()
+                    print("⚠️ No text captured")
+            except Exception as e:
+                hide_popup()
+                print(f"Error during transcription: {e}")
+        
+        t = threading.Thread(target=transcribe_thread, daemon=True)
+        t.start()
+        animate_popup()
+        
     except Exception as e:
-        print(f"Error during transcription: {e}")
+        hide_popup()
+        print(f"Error: {e}")
     finally:
         try:
             os.remove(wav_path)
