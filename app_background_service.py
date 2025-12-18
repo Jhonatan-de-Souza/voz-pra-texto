@@ -54,6 +54,8 @@ stream = None
 record_thread = None
 popup_window = None
 popup_label = None
+popup_queue = queue.Queue()  # Queue for popup commands
+gui_thread = None
 
 # Load whisper model
 MODEL_NAME = os.environ.get('WHISPER_MODEL', 'small')
@@ -89,61 +91,100 @@ def setup_database():
     conn.close()
 
 
-def show_popup(message: str):
-    """Show popup window with message"""
+def gui_thread_func():
+    """Dedicated GUI thread that runs tkinter mainloop"""
     global popup_window, popup_label
     
-    try:
-        if popup_window is not None:
-            popup_window.destroy()
-    except:
-        pass
+    root = tk.Tk()
+    root.withdraw()  # Hide the root window
     
-    popup_window = tk.Tk()
-    popup_window.geometry("250x120+100+100")
-    popup_window.config(bg="#2b2b2b")
-    popup_window.attributes('-topmost', True)
-    popup_window.resizable(False, False)
-    popup_window.overrideredirect(True)
+    def check_queue():
+        """Check for popup commands from other threads"""
+        global popup_window, popup_label
+        
+        try:
+            while not popup_queue.empty():
+                command = popup_queue.get_nowait()
+                
+                if command['action'] == 'show':
+                    # Close existing popup if any
+                    if popup_window is not None:
+                        try:
+                            popup_window.destroy()
+                        except:
+                            pass
+                    
+                    # Create new popup
+                    popup_window = tk.Toplevel(root)
+                    popup_window.geometry("250x120")
+                    popup_window.config(bg="#2b2b2b")
+                    popup_window.attributes('-topmost', True)
+                    popup_window.resizable(False, False)
+                    popup_window.overrideredirect(True)
+                    
+                    # Center on screen
+                    popup_window.update_idletasks()
+                    x = (popup_window.winfo_screenwidth() // 2) - (250 // 2)
+                    y = (popup_window.winfo_screenheight() // 2) - (120 // 2)
+                    popup_window.geometry(f"250x120+{x}+{y}")
+                    
+                    # Add label
+                    font_style = font.Font(family="Arial", size=16, weight="bold")
+                    popup_label = tk.Label(popup_window, text=command['message'], 
+                                          fg="#4da6ff", bg="#2b2b2b", font=font_style)
+                    popup_label.pack(expand=True)
+                    
+                elif command['action'] == 'hide':
+                    if popup_window is not None:
+                        try:
+                            popup_window.destroy()
+                            popup_window = None
+                            popup_label = None
+                        except:
+                            pass
+                
+                elif command['action'] == 'update':
+                    if popup_label is not None:
+                        try:
+                            popup_label.config(text=command['message'])
+                        except:
+                            pass
+        
+        except queue.Empty:
+            pass
+        
+        # Schedule next check
+        root.after(50, check_queue)
     
-    # Center on screen
-    popup_window.update_idletasks()
-    x = (popup_window.winfo_screenwidth() // 2) - (250 // 2)
-    y = (popup_window.winfo_screenheight() // 2) - (120 // 2)
-    popup_window.geometry(f"250x120+{x}+{y}")
+    # Start checking queue
+    check_queue()
     
-    # Add label
-    font_style = font.Font(family="Arial", size=16, weight="bold")
-    popup_label = tk.Label(popup_window, text=message, fg="#4da6ff", bg="#2b2b2b", font=font_style)
-    popup_label.pack(expand=True)
-    
-    popup_window.update()
+    # Run tkinter mainloop
+    root.mainloop()
+
+
+def show_popup(message: str):
+    """Show popup window with message (thread-safe)"""
+    popup_queue.put({'action': 'show', 'message': message})
 
 
 def hide_popup():
-    """Hide popup window"""
-    global popup_window
-    try:
-        if popup_window is not None:
-            popup_window.destroy()
-            popup_window = None
-    except:
-        pass
+    """Hide popup window (thread-safe)"""
+    popup_queue.put({'action': 'hide'})
 
 
-def animate_popup():
-    """Animate popup with dots"""
-    global popup_label, popup_window
-    if popup_label is None:
-        return
-    
+def update_popup(message: str):
+    """Update popup message (thread-safe)"""
+    popup_queue.put({'action': 'update', 'message': message})
+
+
+def animate_popup_thread():
+    """Animate popup with dots in background thread"""
     dots = ["●", "●●", "●●●"]
     for dot in dots * 3:
         try:
-            if popup_label is not None:
-                popup_label.config(text=f"Transcribing...\n{dot}")
-                popup_window.update()
-                time.sleep(0.3)
+            update_popup(f"Transcribing...\n{dot}")
+            time.sleep(0.3)
         except:
             break
 
@@ -334,7 +375,11 @@ def transcribe_and_paste(wav_path: str, duration: float):
         show_popup("Transcribing...\n●")
         print("🔄 Transcribing...")
         
-        # Run transcription in a thread so popup can animate
+        # Start animation in background
+        animation_thread = threading.Thread(target=animate_popup_thread, daemon=True)
+        animation_thread.start()
+        
+        # Run transcription in a thread
         def transcribe_thread():
             try:
                 result = model.transcribe(wav_path)
@@ -362,35 +407,50 @@ def transcribe_and_paste(wav_path: str, duration: float):
             except Exception as e:
                 hide_popup()
                 print(f"Error during transcription: {e}")
+            finally:
+                # Delete temp file after transcription completes
+                try:
+                    os.remove(wav_path)
+                except Exception:
+                    pass
         
         t = threading.Thread(target=transcribe_thread, daemon=True)
         t.start()
-        animate_popup()
         
     except Exception as e:
         hide_popup()
         print(f"Error: {e}")
-    finally:
-        try:
-            os.remove(wav_path)
-        except Exception:
-            pass
 
 
 def setup_hotkeys():
     """Setup keyboard hotkeys for recording"""
-    def _on_any_key(e):
+    # Use add_hotkey to properly detect key press
+    keyboard.add_hotkey('ctrl+win', lambda: start_recording())
+    
+    # For key release, hook and check
+    ctrl_pressed = {'value': False}
+    win_pressed = {'value': False}
+    
+    def _on_key_event(e):
         try:
-            if keyboard.is_pressed('ctrl') and keyboard.is_pressed('win'):
-                if not recording:
-                    start_recording()
-            else:
-                if recording:
+            if e.event_type == 'down':
+                if e.name == 'ctrl':
+                    ctrl_pressed['value'] = True
+                elif e.name == 'windows' or e.name == 'cmd':
+                    win_pressed['value'] = True
+            elif e.event_type == 'up':
+                if e.name == 'ctrl':
+                    ctrl_pressed['value'] = False
+                elif e.name == 'windows' or e.name == 'cmd':
+                    win_pressed['value'] = False
+                
+                # If either key is released while recording, stop
+                if recording and (not ctrl_pressed['value'] or not win_pressed['value']):
                     stop_recording_and_transcribe()
         except Exception as ex:
             print(f"Hotkey check error: {ex}")
 
-    keyboard.hook(_on_any_key)
+    keyboard.hook(_on_key_event)
 
 
 def open_data_folder(icon=None, item=None):
@@ -455,6 +515,8 @@ def create_tray():
 
 def main():
     """Main application entry point"""
+    global gui_thread
+    
     print("""
 ╔════════════════════════════════════════╗
 ║        VOICE2TEXT - TRANSCRIBER        ║
@@ -468,6 +530,12 @@ def main():
     # Setup
     setup_directories()
     setup_database()
+    
+    # Start GUI thread for popup windows
+    gui_thread = threading.Thread(target=gui_thread_func, daemon=True)
+    gui_thread.start()
+    time.sleep(0.5)  # Give GUI thread time to initialize
+    
     setup_hotkeys()
     
     print("✅ Application started!")
